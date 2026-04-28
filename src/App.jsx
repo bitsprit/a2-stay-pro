@@ -892,7 +892,7 @@ export default function App() {
                         </div>
                         <div className="min-w-0">
                           <p className="font-black text-sm uppercase tracking-tight truncate">{t.full_name || 'Advance'}</p>
-                          <p className="text-[8px] text-zinc-400 font-semibold">{item.billing_month || new Date(item.created_at).toLocaleDateString()}</p>
+                          <p className="text-[8px] text-zinc-400 font-semibold">{item.billing_month} · {new Date(item.created_at).toLocaleString()}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
