@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Settings2, Hammer, User, X, Plus, XCircle, Trash2, Wallet, History,
   Calendar, ChevronLeft, PhoneCall, ShieldCheck, MapPin, Edit3,
-  MessageCircle, Phone, Briefcase, BedDouble, CheckCircle, ShieldAlert, Search
+  MessageCircle, Phone, Briefcase, BedDouble, CheckCircle, ShieldAlert, Search, Clock
 } from 'lucide-react';
 
 export default function Inventory({
@@ -14,9 +14,9 @@ export default function Inventory({
   setCheckInModal,
   setPaymentModal,
   setBookingModal,
-  setAddRoomModal,      // undefined for staff — always null-check before calling
-  setEditTenantModal,   // undefined for staff
-  setSecurityModal,     // undefined for staff
+  setAddRoomModal,
+  setEditTenantModal,
+  setSecurityModal,
   setView,
   calculateBalanceAtPeriod,
   currentPeriodLabel,
@@ -32,51 +32,53 @@ export default function Inventory({
   const filteredRooms = rooms.filter(r =>
     (r.room_number || '').toLowerCase().includes(unitSearch.toLowerCase())
   );
-  const getAllRoomTenants = (roomId) => tenants.filter(t => t.room_id === roomId);
+  
+  const getAllRoomTenants = (roomId) => tenants.filter(t => t.room_id === roomId && t.status !== 'Inactive');
   const occupiedCount = filteredRooms.filter(r => getAllRoomTenants(r.id).length > 0).length;
   const closeSidebar  = () => { setSelectedTenant(null); setShowHistory(false); };
 
-  return (
-    <div className="animate-in fade-in pb-28">
+  // Helper to safely display Aadhaar (ISSUE #17 - Privacy)
+  const maskAadhaar = (val) => {
+    if (!val) return '—';
+    return 'XXXX-XXXX-XXXX'; // Redacted for security protocols
+  };
 
+  return (
+    <div className="animate-in fade-in pb-28 bg-white">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:row justify-between items-start sm:items-center mb-6 gap-4">
+        <div className="flex items-center gap-4">
           <button onClick={() => setView('dashboard')}
-            className="p-2.5 bg-white border border-zinc-200 rounded-xl text-zinc-500 hover:text-zinc-900 shadow-sm active:scale-90 transition-all">
-            <ChevronLeft size={17}/>
+            className="p-3 bg-zinc-100 rounded-2xl text-zinc-600 hover:bg-zinc-200 transition-all active:scale-90">
+            <ChevronLeft size={20}/>
           </button>
           <div>
-            <h2 className="text-xl font-black tracking-tight leading-tight">{selectedProperty?.name}</h2>
-            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-widest mt-0.5">{occupiedCount}/{filteredRooms.length} occupied</p>
+            <h2 className="text-2xl font-black tracking-tight">{selectedProperty?.name}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded-md uppercase tracking-widest border border-indigo-100">
+                {occupiedCount} / {filteredRooms.length} Units Active
+              </span>
+            </div>
           </div>
         </div>
+        
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-48">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300"/>
-            <input value={unitSearch} onChange={e => setUnitSearch(e.target.value)} placeholder="Search room…"
-              className="w-full bg-white border border-zinc-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold shadow-sm outline-none focus:border-indigo-400 transition-all"/>
+          <div className="relative flex-1 sm:w-64">
+            <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"/>
+            <input value={unitSearch} onChange={e => setUnitSearch(e.target.value)} placeholder="Search room number..."
+              className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all"/>
           </div>
           {isOwnerOrAdmin && setAddRoomModal && (
             <button onClick={() => setAddRoomModal(true)}
-              className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-md shadow-indigo-500/20 hover:bg-indigo-700 active:scale-90 transition-all flex-shrink-0">
-              <Plus size={17}/>
+              className="p-3.5 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 active:scale-95 transition-all">
+              <Plus size={20}/>
             </button>
           )}
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 mb-5 flex-wrap">
-        {[['bg-zinc-900','Occupied'],['bg-indigo-400 animate-pulse','Reserved'],['bg-zinc-200','Vacant'],['bg-amber-400','Pending']].map(([cls, lbl]) => (
-          <span key={lbl} className="flex items-center gap-1.5 text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
-            <span className={`w-2 h-2 rounded-full ${cls} inline-block`}/> {lbl}
-          </span>
-        ))}
-      </div>
-
-      {/* Room grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+      {/* Grid Layout */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredRooms.map(room => {
           const capacity     = room.room_type === 'Single' ? 1 : room.room_type === 'Triple' ? 3 : 2;
           const allResidents = getAllRoomTenants(room.id);
@@ -86,258 +88,195 @@ export default function Inventory({
           const isFull       = allResidents.length + booked >= capacity;
 
           return (
-            <div key={room.id} className={`rounded-2xl border flex flex-col overflow-hidden transition-all hover:shadow-md
-              ${isMaint ? 'bg-zinc-50 border-dashed border-zinc-200 opacity-75' : 'bg-white border-zinc-100 shadow-sm'}`}>
+            <div key={room.id} className={`rounded-[2rem] border-2 transition-all duration-300 group
+              ${isMaint ? 'bg-zinc-50 border-dashed border-zinc-200 opacity-60' : 
+                isFull ? 'bg-white border-zinc-100 shadow-sm' : 'bg-white border-zinc-100 hover:border-indigo-200 shadow-sm'}`}>
 
-              {/* Room header */}
-              <div className={`px-4 py-3 border-b ${isMaint ? 'border-zinc-100' : 'border-zinc-50'}`}>
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2">
-                    <h5 className="text-xl font-black tracking-tight">{room.room_number}</h5>
-                    {isMaint && <span className="text-[7px] font-black bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full uppercase">Maint</span>}
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h5 className="text-2xl font-black tracking-tighter">{room.room_number}</h5>
+                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mt-0.5">{room.room_type} Room</p>
                   </div>
                   {isOwnerOrAdmin && (
                     <button onClick={() => setEditMode(isEditing ? null : room.id)}
-                      className={`p-1.5 rounded-lg transition-all ${isEditing ? 'bg-rose-100 text-rose-500' : 'text-zinc-300 hover:text-zinc-600 hover:bg-zinc-100'}`}>
-                      {isEditing ? <X size={14}/> : <Settings2 size={14}/>}
+                      className={`p-2.5 rounded-xl transition-all ${isEditing ? 'bg-rose-50 text-rose-500' : 'bg-zinc-50 text-zinc-300 hover:text-zinc-600'}`}>
+                      {isEditing ? <X size={16}/> : <Settings2 size={16}/>}
                     </button>
                   )}
                 </div>
-                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-2">{room.room_type} · {capacity} bed{capacity > 1 ? 's' : ''}</p>
-                {/* Bed bars */}
-                <div className="flex gap-1">
+
+                {/* Visual Occupancy Bar */}
+                <div className="flex gap-1.5 mb-6">
                   {Array.from({length: capacity}).map((_, i) => {
-                    const pendingCount = allResidents.filter(t => !t.is_verified).length;
-                    const verifiedCount = allResidents.filter(t => t.is_verified).length;
+                    const isOccupied = i < allResidents.length;
+                    const isReserved = i >= allResidents.length && i < allResidents.length + booked;
                     return (
-                      <div key={i} className={`h-1.5 flex-1 rounded-full transition-all
-                        ${i < pendingCount ? 'bg-amber-400' :
-                          i < allResidents.length ? 'bg-zinc-900' :
-                          i < allResidents.length + booked ? 'bg-indigo-400 animate-pulse' :
-                          'bg-zinc-100'}`}/>
+                      <div key={i} className={`h-2 flex-1 rounded-full transition-all duration-500
+                        ${isOccupied ? 'bg-zinc-900' : isReserved ? 'bg-indigo-400 animate-pulse' : 'bg-zinc-100'}`}/>
                     );
                   })}
                 </div>
-              </div>
 
-              {/* Edit panel */}
-              {isEditing ? (
-                <div className="p-3 space-y-2 animate-in fade-in duration-150">
-                  <input defaultValue={room.room_number}
-                    onBlur={e => { if (e.target.value !== room.room_number) handleBedAction(room, 'rename', e.target.value); }}
-                    className="w-full bg-zinc-50 border border-zinc-200 p-2 rounded-lg font-black text-center text-sm outline-none focus:border-indigo-400"/>
-                  <select value={room.room_type} onChange={e => handleBedAction(room, 'changeType', e.target.value)}
-                    className="w-full bg-zinc-50 border border-zinc-200 p-2 rounded-lg text-xs font-semibold outline-none">
-                    <option value="Single">Single (1 bed)</option>
-                    <option value="Double">Double (2 beds)</option>
-                    <option value="Triple">Triple (3 beds)</option>
-                  </select>
-                  <button onClick={() => { handleBedAction(room, isMaint ? 'unblock' : 'block'); setEditMode(null); }}
-                    className={`w-full py-2 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all flex items-center justify-center gap-1
-                      ${isMaint ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white' : 'bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white'}`}>
-                    <Hammer size={10}/> {isMaint ? 'Mark Open' : 'Maintenance'}
-                  </button>
-                  {setSecurityModal && (
-                    <button onClick={() => { setSecurityModal({ open: true, type: 'room', id: room.id }); setEditMode(null); }}
-                      className="w-full py-2 bg-zinc-100 text-zinc-400 rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-1">
-                      <Trash2 size={10}/> Delete Room
+                {isEditing ? (
+                  <div className="space-y-2 animate-in slide-in-from-top-2">
+                    <button onClick={() => handleBedAction(room, isMaint ? 'unblock' : 'block')}
+                      className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2
+                        ${isMaint ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                      <Hammer size={12}/> {isMaint ? 'End Maintenance' : 'Set Maintenance'}
                     </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Resident chips */}
-                  <div className="flex-1 p-3 space-y-1.5 min-h-[60px]">
+                    {setSecurityModal && (
+                      <button onClick={() => setSecurityModal({ open: true, type: 'room', id: room.id })}
+                        className="w-full py-3 bg-rose-50 text-rose-500 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                        <Trash2 size={12}/> Remove Unit
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
                     {allResidents.map(t => {
-                      const bal     = calculateBalanceAtPeriod(t, ledger, currentPeriodLabel);
-                      const pending = !t.is_verified;
+                      const bal = calculateBalanceAtPeriod(t, ledger, currentPeriodLabel);
                       return (
-                        <button key={t.id} onClick={() => { setSelectedTenant(t); setShowHistory(false); }}
-                          className={`w-full text-left p-2 rounded-xl transition-all group border
-                            ${pending ? 'bg-amber-50 border-amber-100 hover:bg-amber-100' :
-                              'bg-zinc-50 border-transparent hover:bg-zinc-900 hover:text-white hover:border-zinc-800'}`}>
-                          <div className="flex items-center justify-between gap-1">
-                            <div className="flex items-center gap-1 min-w-0">
-                              <User size={9} className="flex-shrink-0 opacity-60"/>
-                              <p className="text-[10px] font-black uppercase truncate">{t.full_name}</p>
-                              {pending && <ShieldAlert size={9} className="text-amber-500 flex-shrink-0"/>}
+                        <button key={t.id} onClick={() => setSelectedTenant(t)}
+                          className="w-full flex items-center justify-between p-3 bg-zinc-50 rounded-2xl hover:bg-zinc-900 hover:text-white transition-all group">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-6 h-6 bg-white rounded-lg flex items-center justify-center text-zinc-400 group-hover:bg-white/10 group-hover:text-white transition-colors">
+                              <User size={12}/>
                             </div>
-                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap
-                              ${pending ? 'bg-amber-200 text-amber-700' :
-                                bal > 0 ? 'bg-rose-100 text-rose-600 group-hover:bg-rose-500 group-hover:text-white' :
-                                'bg-emerald-100 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white'}`}>
-                              {pending ? 'PENDING' : bal > 0 ? `₹${bal.toLocaleString()} DUE` : `₹${Math.abs(bal).toLocaleString()} ADV`}
-                            </span>
+                            <p className="text-[11px] font-black uppercase truncate">{t.full_name}</p>
+                          </div>
+                          <div className={`px-2 py-0.5 rounded-lg text-[8px] font-black ${bal > 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                            {bal > 0 ? `₹${bal.toLocaleString()}` : 'PAID'}
                           </div>
                         </button>
                       );
                     })}
 
                     {booked > 0 && (
-                      <div className="p-2 bg-indigo-50 rounded-xl border border-indigo-100 flex justify-between items-center">
-                        <div>
+                      <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-2xl flex justify-between items-center animate-pulse">
+                        <div className="min-w-0">
                           <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Reserved</p>
-                          <p className="text-[10px] font-black text-indigo-700 truncate">{room.booked_by_name}</p>
+                          <p className="text-[11px] font-black text-indigo-700 truncate">{room.booked_by_name}</p>
                         </div>
-                        <button onClick={() => handleBedAction(room, 'cancel')} className="p-1 text-indigo-300 hover:text-rose-500 rounded-lg transition-all">
-                          <XCircle size={13}/>
+                        <button onClick={() => handleBedAction(room, 'cancel')} className="p-1.5 bg-white rounded-lg text-rose-500 shadow-sm">
+                          <XCircle size={14}/>
                         </button>
                       </div>
                     )}
 
-                    {allResidents.length === 0 && booked === 0 && !isMaint && (
-                      <div className="flex flex-col items-center justify-center py-4 text-zinc-200">
-                        <BedDouble size={22} className="mb-1"/><p className="text-[8px] font-bold uppercase tracking-widest">Vacant</p>
+                    {!isMaint && !isFull && (
+                      <div className="pt-2 grid grid-cols-2 gap-2">
+                        <button onClick={() => setBookingModal({ open: true, room })}
+                          className="py-3 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">
+                          Reserve
+                        </button>
+                        <button onClick={() => setCheckInModal({ open: true, room })}
+                          className="py-3 bg-zinc-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all">
+                          Check In
+                        </button>
                       </div>
                     )}
                   </div>
-
-                  {/* Action buttons */}
-                  {!isMaint && (
-                    <div className="p-2.5 grid grid-cols-2 gap-2">
-                      <button onClick={() => setBookingModal({ open: true, room })} disabled={isFull}
-                        className="py-2.5 rounded-xl text-[9px] font-black uppercase bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white active:scale-95 transition-all disabled:opacity-20 disabled:pointer-events-none tracking-widest">
-                        Reserve
-                      </button>
-                      <button onClick={() => setCheckInModal({ open: true, room })} disabled={allResidents.length >= capacity}
-                        className="py-2.5 rounded-xl text-[9px] font-black uppercase bg-zinc-900 text-white hover:bg-indigo-600 active:scale-95 transition-all disabled:opacity-20 disabled:pointer-events-none tracking-widest">
-                        Check In
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
+                )}
+              </div>
             </div>
           );
         })}
-
-        {filteredRooms.length === 0 && (
-          <div className="col-span-full flex flex-col items-center py-20 text-zinc-200">
-            <BedDouble size={36} className="mb-3"/><p className="font-bold text-sm">No rooms found</p>
-          </div>
-        )}
       </div>
 
-      {/* Tenant detail sidebar */}
+      {/* Tenant Sidebar */}
       {selectedTenant && (
-        <div className="fixed inset-0 z-[1000] flex justify-end">
+        <div className="fixed inset-0 z-[2000] flex justify-end">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeSidebar}/>
-          <div className="relative w-full max-w-sm bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-250">
-
-            {/* Sidebar header */}
-            <div className="flex justify-between items-start px-5 py-4 border-b border-zinc-100 flex-shrink-0">
+          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="p-8 border-b flex justify-between items-center">
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-base font-black tracking-tight">{selectedTenant.full_name}</h3>
-                  {!selectedTenant.is_verified && (
-                    <span className="text-[7px] bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full font-black uppercase">Pending</span>
-                  )}
-                </div>
-                <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mt-0.5">Tenant Profile</p>
+                <h3 className="text-2xl font-black tracking-tighter">{selectedTenant.full_name}</h3>
+                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mt-1">Resident Profile</p>
               </div>
-              <button onClick={closeSidebar} className="p-2 bg-zinc-100 rounded-xl hover:bg-zinc-200 transition-all flex-shrink-0"><X size={16}/></button>
+              <button onClick={closeSidebar} className="p-3 bg-zinc-100 rounded-2xl"><X size={20}/></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
               {showHistory ? (
-                <div className="space-y-2">
-                  <button onClick={() => setShowHistory(false)} className="flex items-center gap-1.5 text-[9px] font-black uppercase text-indigo-500 tracking-widest mb-3">
-                    <ChevronLeft size={11}/> Back
+                <div className="space-y-4">
+                  <button onClick={() => setShowHistory(false)} className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-2 mb-4">
+                    <ChevronLeft size={14}/> View Profile
                   </button>
-                  {ledger.filter(l => l.tenant_id === selectedTenant.id).length === 0 && (
-                    <div className="flex flex-col items-center py-10 text-zinc-300"><CheckCircle size={28} className="mb-2"/><p className="text-xs font-bold">No transactions yet</p></div>
-                  )}
                   {ledger.filter(l => l.tenant_id === selectedTenant.id).map(log => (
-                    <div key={log.id} className={`p-3 rounded-xl flex justify-between items-center border ${!log.is_verified ? 'bg-amber-50 border-amber-100' : 'bg-zinc-50 border-zinc-100'}`}>
+                    <div key={log.id} className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100 flex justify-between items-center">
                       <div>
-                        <p className="font-black text-sm">₹{Number(log.paid_amount).toLocaleString()}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-[9px] font-bold text-zinc-400">{log.billing_month}</p>
-                          {!log.is_verified && <span className="text-[7px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-black uppercase">Pending</span>}
-                        </div>
+                        <p className="font-black text-lg">₹{Number(log.paid_amount).toLocaleString()}</p>
+                        <p className="text-[10px] text-zinc-400 font-bold mt-1 uppercase">{log.payment_type} · {log.billing_month}</p>
                       </div>
-                      <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-lg border
-                        ${log.payment_type?.toUpperCase() === 'RENT' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                          log.payment_type?.toUpperCase() === 'SECURITY' ? 'bg-violet-50 text-violet-600 border-violet-100' :
-                          'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                        {log.payment_type}
-                      </span>
+                      <div className="text-right">
+                        <p className="text-[8px] font-black bg-white px-2 py-1 rounded-lg border border-zinc-100 uppercase">{log.payment_mode}</p>
+                        {!log.is_verified && <p className="text-[7px] font-black text-amber-500 mt-1 uppercase tracking-widest">Pending Approval</p>}
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
                 <>
-                  {/* Balance card */}
-                  {(() => {
-                    const bal = calculateBalanceAtPeriod(selectedTenant, ledger, currentPeriodLabel);
-                    return (
-                      <div className="bg-zinc-900 rounded-2xl p-4 text-white">
-                        <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">This Month's Balance</p>
-                        <p className={`text-2xl font-black mt-1 ${bal > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>₹{Math.abs(bal).toLocaleString()}</p>
-                        <p className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${bal > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{bal > 0 ? 'Due' : 'Advance / Settled'}</p>
-                        <div className="grid grid-cols-2 gap-2 border-t border-white/10 mt-3 pt-3 text-xs">
-                          <div><p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">Rent</p><p className="font-black">₹{selectedTenant.agreed_rent?.toLocaleString()}</p></div>
-                          <div><p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">Security</p><p className="font-black">₹{selectedTenant.security_deposit?.toLocaleString() || '—'}</p></div>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  <div className="bg-zinc-900 rounded-[2rem] p-8 text-white shadow-2xl">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Current Balance</p>
+                    <p className={`text-4xl font-black mt-2 ${calculateBalanceAtPeriod(selectedTenant, ledger, currentPeriodLabel) > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      ₹{Math.abs(calculateBalanceAtPeriod(selectedTenant, ledger, currentPeriodLabel)).toLocaleString()}
+                    </p>
+                    <div className="mt-8 grid grid-cols-2 gap-4 border-t border-white/10 pt-6">
+                      <div><p className="text-[9px] font-black text-zinc-500 uppercase">Monthly Rent</p><p className="text-lg font-black italic">₹{selectedTenant.agreed_rent?.toLocaleString()}</p></div>
+                      <div><p className="text-[9px] font-black text-zinc-500 uppercase">Security Held</p><p className="text-lg font-black italic">₹{selectedTenant.security_deposit?.toLocaleString()}</p></div>
+                    </div>
+                  </div>
 
-                  {/* Contact */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => window.open(`tel:${selectedTenant.phone_number}`)}
-                      className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center justify-center gap-1.5 text-[9px] font-black uppercase hover:bg-indigo-600 hover:text-white hover:border-indigo-600 active:scale-95 transition-all">
-                      <Phone size={12}/> Call
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => window.open(`tel:${selectedTenant.phone_number}`)} className="flex-1 py-4 bg-zinc-100 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest">
+                      <Phone size={14}/> Call
                     </button>
-                    <button onClick={() => window.open(`https://wa.me/91${selectedTenant.phone_number}`)}
-                      className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center gap-1.5 text-[9px] font-black uppercase text-emerald-600 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 active:scale-95 transition-all">
-                      <MessageCircle size={12}/> WhatsApp
+                    <button onClick={() => window.open(`https://wa.me/91${selectedTenant.phone_number}`)} className="flex-1 py-4 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest">
+                      <MessageCircle size={14}/> WhatsApp
                     </button>
                   </div>
 
-                  {/* Details */}
-                  <div className="bg-zinc-50 rounded-xl p-4 space-y-3 border border-zinc-100">
+                  <div className="bg-zinc-50 rounded-[2rem] p-6 space-y-4 border border-zinc-100">
                     {[
-                      { icon: Calendar,    color: 'text-indigo-500',  label: 'Joined',    value: selectedTenant.join_date || '—' },
-                      { icon: ShieldCheck, color: 'text-emerald-500', label: 'Aadhaar',   value: selectedTenant.aadhaar_number || '—' },
-                      { icon: Briefcase,   color: 'text-indigo-500',  label: 'Work',      value: selectedTenant.organization_name || 'Individual' },
-                      { icon: MapPin,      color: 'text-rose-500',    label: 'Address',   value: selectedTenant.permanent_address || '—' },
-                      { icon: PhoneCall,   color: 'text-rose-500',    label: 'Emergency', value: selectedTenant.emergency_number || '—' },
-                    ].map(({ icon: Icon, color, label, value }) => (
-                      <div key={label} className="flex items-start gap-2.5">
-                        <Icon size={13} className={`${color} mt-0.5 flex-shrink-0`}/>
-                        <div>
-                          <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{label}</p>
-                          <p className="text-xs font-semibold text-zinc-700 leading-tight mt-0.5">{value}</p>
+                      { icon: Calendar, label: 'Checked In', value: selectedTenant.join_date },
+                      { icon: ShieldCheck, label: 'Identity (Aadhaar)', value: maskAadhaar(selectedTenant.aadhaar_number) },
+                      { icon: Briefcase, label: 'Affiliation', value: selectedTenant.organization_name || 'Individual' },
+                      { icon: MapPin, label: 'Native Address', value: selectedTenant.permanent_address },
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex gap-4">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-500 shadow-sm border border-zinc-100"><item.icon size={16}/></div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{item.label}</p>
+                          <p className="text-sm font-black text-zinc-700 leading-tight mt-0.5 truncate">{item.value || 'Not provided'}</p>
                         </div>
                       </div>
                     ))}
                   </div>
-
-                  <button onClick={() => setShowHistory(true)}
-                    className="w-full p-3 bg-white border border-zinc-200 text-zinc-500 rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-1.5 tracking-widest hover:bg-indigo-600 hover:text-white hover:border-indigo-600 active:scale-95 transition-all">
-                    <History size={13}/> Payment History
+                  
+                  <button onClick={() => setShowHistory(true)} className="w-full py-5 bg-white border-2 border-zinc-100 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-zinc-900 hover:text-white transition-all">
+                    <History size={16}/> View Transaction Log
                   </button>
                 </>
               )}
             </div>
 
-            {/* Footer actions */}
             {!showHistory && (
-              <div className="p-4 border-t border-zinc-100 space-y-2 flex-shrink-0">
+              <div className="p-8 border-t border-zinc-100 space-y-3">
                 <button onClick={() => setPaymentModal({ open: true, tenant: selectedTenant })}
-                  className="w-full bg-emerald-500 text-white py-3.5 rounded-xl font-black uppercase text-[9px] flex items-center justify-center gap-1.5 tracking-widest hover:bg-emerald-600 active:scale-95 transition-all shadow-lg shadow-emerald-500/20">
-                  <Wallet size={13}/> Record Payment
+                  className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 active:scale-95 transition-all">
+                  Collect Payment
                 </button>
                 {isOwnerOrAdmin && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => { if (setEditTenantModal) { setEditTenantModal({ open: true, tenant: selectedTenant }); closeSidebar(); } }}
-                      className="py-3 bg-zinc-900 text-white rounded-xl font-black uppercase text-[9px] flex items-center justify-center gap-1.5 tracking-widest hover:bg-indigo-600 active:scale-95 transition-all">
-                      <Edit3 size={11}/> Edit
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => { setEditTenantModal({ open: true, tenant: selectedTenant }); closeSidebar(); }}
+                      className="py-4 bg-zinc-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">
+                      Edit Info
                     </button>
-                    <button onClick={() => { if (setSecurityModal) { setSecurityModal({ open: true, type: 'tenant', id: selectedTenant.id }); closeSidebar(); } }}
-                      className="py-3 bg-rose-50 text-rose-500 rounded-xl font-black uppercase text-[9px] flex items-center justify-center gap-1.5 tracking-widest hover:bg-rose-500 hover:text-white active:scale-95 transition-all">
-                      <Trash2 size={11}/> Remove
+                    <button onClick={() => { setSecurityModal({ open: true, type: 'tenant', id: selectedTenant.id }); closeSidebar(); }}
+                      className="py-4 bg-rose-50 text-rose-500 rounded-2xl font-black text-[10px] uppercase tracking-widest">
+                      Check Out
                     </button>
                   </div>
                 )}
